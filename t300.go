@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	copy "github.com/otiai10/copy"
+	"github.com/otiai10/copy"
 	"github.com/tealeg/xlsx"
 	"io/ioutil"
 	"log"
@@ -35,8 +35,6 @@ type ProtConf struct {
 }
 
 func main() {
-	// array of configurations from input file
-	configurations := make(map[string]*RTUConf)
 	// Template projects
 	confDirs := map[int]string{
 		1: "Config_1_REF_V3_TEMPLATE",
@@ -55,7 +53,41 @@ func main() {
 		log.Fatal(err)
 	}
 	// RTU sheet
-	rtuSheet := xlFile.Sheet["RTU"]
+	configurations := parseRTU(xlFile.Sheet["RTU"])
+	// PROTEZIONI sheet
+	parseProtections(xlFile.Sheet["PROTEZIONI"], configurations)
+
+	// for each configuration generate the project from template
+	for _, configuration := range configurations {
+		tmplDir := confDirs[len(configuration.ProtConfs)]
+		err = copy.Copy(*templatePath+"/"+tmplDir, configuration.Name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		prjPath := configuration.Name + "/" + configuration.Name
+		prjFilesPath := prjPath + " Files"
+		// rename paths according to generated project
+		err = os.Rename(configuration.Name+"/"+tmplDir+".ctpx", prjPath+".ctpx")
+		err = os.Rename(configuration.Name+"/"+tmplDir+" Files", prjFilesPath)
+
+		// parse Profile.xml
+		profilePath := prjFilesPath + "/Profile.xml"
+		parseTemplate(profilePath, configuration)
+		// parse T300_61850.scd
+		scdPath := prjFilesPath + "/i61sc/T300_61850.scd"
+		parseTemplate(scdPath, configuration)
+		// parse i4e_cont.xml
+		i4ePath := prjFilesPath + "/i4e/i4e_cont.xml"
+		parseTemplate(i4ePath, configuration)
+		// parse thmConf.xml
+		thmPath := prjFilesPath + "/thmConf.xml"
+		parseTemplate(thmPath, configuration)
+	}
+}
+
+func parseRTU(rtuSheet *xlsx.Sheet) map[string]*RTUConf {
+	// array of configurations from input file
+	configurations := make(map[string]*RTUConf)
 	for i, row := range rtuSheet.Rows {
 		newConf := RTUConf{}
 		// skip header line
@@ -90,8 +122,10 @@ func main() {
 		configurations[newConf.Name] = &newConf
 		fmt.Println("Added new RTU: ", newConf.Name)
 	}
-	// PROTEZIONI sheet
-	protSheet := xlFile.Sheet["PROTEZIONI"]
+	return configurations
+}
+
+func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf) {
 	for i, row := range protSheet.Rows {
 		var rtu *RTUConf
 		newProt := ProtConf{}
@@ -126,32 +160,6 @@ func main() {
 		}
 		fmt.Printf("Added new Protection %s to RTU %s\n", newProt.Name, rtu.Name)
 		rtu.ProtConfs = append(rtu.ProtConfs, newProt)
-	}
-	// for each configuration generate the project from template
-	for _, configuration := range configurations {
-		tmplDir := confDirs[len(configuration.ProtConfs)]
-		err = copy.Copy(*templatePath+"/"+tmplDir, configuration.Name)
-		if err != nil {
-			log.Fatal(err)
-		}
-		prjPath := configuration.Name + "/" + configuration.Name
-		prjFilesPath := prjPath + " Files"
-		// rename paths according to generated project
-		err = os.Rename(configuration.Name+"/"+tmplDir+".ctpx", prjPath+".ctpx")
-		err = os.Rename(configuration.Name+"/"+tmplDir+" Files", prjFilesPath)
-
-		// parse Profile.xml
-		profilePath := prjFilesPath + "/Profile.xml"
-		parseTemplate(profilePath, configuration)
-		// parse T300_61850.scd
-		scdPath := prjFilesPath + "/i61sc/T300_61850.scd"
-		parseTemplate(scdPath, configuration)
-		// parse i4e_cont.xml
-		i4ePath := prjFilesPath + "/i4e/i4e_cont.xml"
-		parseTemplate(i4ePath, configuration)
-		// parse thmConf.xml
-		thmPath := prjFilesPath + "/thmConf.xml"
-		parseTemplate(thmPath, configuration)
 	}
 }
 
