@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"github.com/otiai10/copy"
 	"github.com/tealeg/xlsx"
@@ -97,6 +98,9 @@ func main() {
 }
 
 func parseRTU(rtuSheet *xlsx.Sheet) map[string]*RTUConf {
+	if rtuSheet == nil {
+		log.Fatal(errors.New("[ERROR] RTU sheet not found in input file"))
+	}
 	// array of configurations from input file
 	configurations := make(map[string]*RTUConf)
 	for i, row := range rtuSheet.Rows {
@@ -117,6 +121,7 @@ func parseRTU(rtuSheet *xlsx.Sheet) map[string]*RTUConf {
 			case 2:
 				ca, err := strconv.Atoi(cell.String())
 				if err != nil {
+					log.Printf("[WARNING] COMMON_ADDRESS %s is not valid (%s)\n", cell.String(), err.Error())
 					continue
 				}
 				newConf.CommonAddress = ca
@@ -137,6 +142,9 @@ func parseRTU(rtuSheet *xlsx.Sheet) map[string]*RTUConf {
 }
 
 func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf) {
+	if protSheet == nil {
+		log.Fatal(errors.New("[ERROR] PROTEZIONI sheet not found in input file"))
+	}
 	for i, row := range protSheet.Rows {
 		var rtu *RTUConf // RTU for this protection
 		rtuName := ""    // Name of the RTU
@@ -156,7 +164,7 @@ func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf)
 			case 1:
 				num, err := strconv.Atoi(cell.String())
 				if err != nil {
-					log.Println("[ERROR]", err)
+					log.Printf("[WARNING] NUMERO_INTERRUTTORE %s is not valid (%s)\n", cell.String(), err.Error())
 					continue
 				}
 				newProt.Num = num
@@ -173,7 +181,7 @@ func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf)
 			}
 		}
 		if rtu == nil {
-			log.Printf("[ERROR] The RTU %s for protection %s could not be found\n", rtuName, newProt.Name)
+			log.Printf("[WARNING] The RTU %s for protection %s could not be found\n", rtuName, newProt.Name)
 		} else {
 			log.Printf("Added new Protection %s to RTU %s\n", newProt.Name, rtu.Name)
 			rtu.ProtConfs = append(rtu.ProtConfs, newProt)
