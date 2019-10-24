@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/otiai10/copy"
 	"github.com/tealeg/xlsx"
 	"io/ioutil"
@@ -59,6 +58,12 @@ func main() {
 
 	// for each configuration generate the project from template
 	for _, configuration := range configurations {
+		// remove old generated project (if any)
+		err = os.RemoveAll(configuration.Name)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// copy the template project into current directory
 		tmplDir := confDirs[len(configuration.ProtConfs)]
 		err = copy.Copy(*templatePath+"/"+tmplDir, configuration.Name)
 		if err != nil {
@@ -68,7 +73,13 @@ func main() {
 		prjFilesPath := prjPath + " Files"
 		// rename paths according to generated project
 		err = os.Rename(configuration.Name+"/"+tmplDir+".ctpx", prjPath+".ctpx")
+		if err != nil {
+			log.Fatal(err)
+		}
 		err = os.Rename(configuration.Name+"/"+tmplDir+" Files", prjFilesPath)
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		// parse Profile.xml
 		profilePath := prjFilesPath + "/Profile.xml"
@@ -120,14 +131,15 @@ func parseRTU(rtuSheet *xlsx.Sheet) map[string]*RTUConf {
 			}
 		}
 		configurations[newConf.Name] = &newConf
-		fmt.Println("Added new RTU: ", newConf.Name)
+		log.Println("Added new RTU:", newConf.Name)
 	}
 	return configurations
 }
 
 func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf) {
 	for i, row := range protSheet.Rows {
-		var rtu *RTUConf
+		var rtu *RTUConf // RTU for this protection
+		rtuName := ""    // Name of the RTU
 		newProt := ProtConf{}
 		// skip header line
 		if i == 0 {
@@ -139,10 +151,12 @@ func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf)
 		for i, cell := range row.Cells {
 			switch i {
 			case 0:
-				rtu = configurations[cell.String()]
+				rtuName = cell.String()
+				rtu = configurations[rtuName]
 			case 1:
 				num, err := strconv.Atoi(cell.String())
 				if err != nil {
+					log.Println("[ERROR]", err)
 					continue
 				}
 				newProt.Num = num
@@ -158,8 +172,12 @@ func parseProtections(protSheet *xlsx.Sheet, configurations map[string]*RTUConf)
 				newProt.Affacciata = cell.String()
 			}
 		}
-		fmt.Printf("Added new Protection %s to RTU %s\n", newProt.Name, rtu.Name)
-		rtu.ProtConfs = append(rtu.ProtConfs, newProt)
+		if rtu == nil {
+			log.Printf("[ERROR] The RTU %s for protection %s could not be found\n", rtuName, newProt.Name)
+		} else {
+			log.Printf("Added new Protection %s to RTU %s\n", newProt.Name, rtu.Name)
+			rtu.ProtConfs = append(rtu.ProtConfs, newProt)
+		}
 	}
 }
 
