@@ -194,15 +194,14 @@ func parseTemplate(fileName string, configuration *RTUConf) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	file, err := os.OpenFile(fileName, os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
 	tmpl, err := template.New("test").Parse(string(data))
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
 	err = tmpl.Execute(file, configuration)
 	if err != nil {
 		log.Fatal(err)
